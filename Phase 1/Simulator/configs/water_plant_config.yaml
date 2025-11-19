@@ -1,0 +1,93 @@
+# ===================================================================
+# Water Treatment Plant SCADA Simulator Configuration
+# ===================================================================
+
+simulation:
+  duration_hours: 6
+  time_step_seconds: 1  # Changed from 5 to 1
+  output_csv_path: "datasets/6_hour_balanced_simulation.csv"
+
+# --- NEW: Configuration for the balanced timeline generator ---
+balanced_attack_config:
+  normal_data_percentage: 0.50  # 50% of data will be 'Normal'
+  attack_block_duration_seconds: 300 # Attacks will be in 5-minute (300s) blocks
+
+plc:
+  ip_address: "localhost"
+  port: 5020
+
+network:
+  hmi_ip: "192.168.1.20"
+
+register_map:
+  # --- Raw Water Intake (Sensors) ---
+  raw_water_turbidity: { address: 1, type: "ir" }   # (NTU) - Input Register
+  raw_water_flow_rate: { address: 2, type: "ir" }   # (L/min) - Input Register
+
+  # --- Coagulation & Flocculation (Sensors & Actuators) ---
+  coagulant_pump_speed: { address: 10, type: "hr" } # (RPM) - Holding Register
+  flocculator_speed: { address: 11, type: "hr" }    # (RPM) - Holding Register
+
+  # --- Sedimentation (Sensor) ---
+  sedimentation_turbidity: { address: 20, type: "ir" } # (NTU) - Input Register
+
+  # --- Filtration (Sensor & Actuator) ---
+  filter_outlet_turbidity: { address: 30, type: "ir" } # (NTU) - Input Register
+  filter_backwash_pump_status: { address: 31, type: "co" } # 1=ON, 0=OFF - Coil
+
+  # --- Disinfection (Sensor) ---
+  chlorine_level: { address: 40, type: "ir" } # (mg/L) - Input Register
+  
+  # --- System Status (Actuator) ---
+  intake_pump_status: { address: 3, type: "co" }    # 1=ON, 0=OFF - Coil
+
+process_parameters:
+  raw_water_turbidity_normal: 50
+  raw_water_turbidity_high_threshold: 150
+  filter_turbidity_backwash_threshold: 10
+  flow_rate_normal: 5000
+  coagulant_pump_speed_normal: 100
+  coagulant_pump_speed_high: 200
+  faulty_reading_chance: 0.001 # 0.1% chance per step of a sensor getting stuck
+
+# ===================================================================
+# Cyber Attack Scenario Library
+# The new 'AttackSimulator' uses this as a *library* of attack definitions
+# to build its balanced and randomized timeline.
+# ===================================================================
+attack_scenarios:
+  - name: "Stealthy Data Manipulation (Offset)"
+    attack_type: "offset"
+    target_register: "raw_water_turbidity"
+    parameters:
+      offset: -25
+
+  - name: "Process Denial of Service (Actuator)"
+    attack_type: "set_value"
+    target_register: "coagulant_pump_speed"
+    parameters: { value: 0 }
+
+  - name: "False Data Injection (High Value)"
+    attack_type: "set_value"
+    target_register: "raw_water_turbidity"
+    parameters:
+      value: 600
+
+  - name: "Intermittent Command Injection"
+    attack_type: "intermittent_false_readings"
+    target_register: "filter_backwash_pump_status"
+    parameters:
+      probability: 0.4 # 40% chance EACH STEP during the attack to send the false value
+      false_value: 0
+
+  - name: "Man-in-the-Middle (Data Manipulation)"
+    attack_type: "man_in_the_middle_write"
+    target_register: "coagulant_pump_speed"
+    parameters:
+      value: 40 # Subtly lower speed instead of shutting it off
+
+  - name: "Sustained Data Manipulation (Offset)"
+    attack_type: "offset"
+    target_register: "raw_water_turbidity"
+    parameters:
+      offset: -40

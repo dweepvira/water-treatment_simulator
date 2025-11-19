@@ -1,0 +1,5 @@
+packaging==25.0
+pymodbus==3.11.1
+PyYAML==6.0.2
+Flask
+pyModbusTCP
